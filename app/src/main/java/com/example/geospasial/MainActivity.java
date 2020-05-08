@@ -6,11 +6,14 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.location.Location;
+
+import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationListener;
 import android.os.Build;
 import android.os.Bundle;
@@ -22,6 +25,15 @@ import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.util.ArrayList;
 
@@ -29,6 +41,10 @@ import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 
 public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
+    SupportMapFragment supportMapFragment;
+
+
+
     Location mLocation;
     TextView latLng;
     GoogleApiClient mGoogleApiClient;
@@ -42,6 +58,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     private ArrayList permissionsRejected = new ArrayList();
     private ArrayList permissions = new ArrayList();
     private final static int ALL_PERMISSIONS_RESULT = 101;
+
+    FusedLocationProviderClient client;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,6 +71,17 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         permissions.add(ACCESS_COARSE_LOCATION);
 
         permissionsToRequest = findUnAskedPermissions(permissions);
+        supportMapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.google_map);
+
+        client = LocationServices.getFusedLocationProviderClient(this);
+
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED){
+            getCurrentLocation();
+        }else{
+            ActivityCompat.requestPermissions(MainActivity.this, new String[]{ACCESS_FINE_LOCATION}, 44);
+        }
+
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (permissionsToRequest.size() > 0)
@@ -63,6 +92,28 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .build();
+    }
+
+
+    private void getCurrentLocation() {
+        Task<Location> task = client.getLastLocation();
+        task.addOnSuccessListener(new OnSuccessListener<Location>() {
+            @Override
+            public void onSuccess(final Location location) {
+                if (location != null){
+                    supportMapFragment.getMapAsync(new OnMapReadyCallback() {
+                        @Override
+                        public void onMapReady(GoogleMap googleMap) {
+                            LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+                            MarkerOptions options = new MarkerOptions().position(latLng)
+                                    .title("I am There");
+                            googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 10));
+                            googleMap.addMarker(options);
+                        }
+                    });
+                }
+            }
+        });
     }
 
     private ArrayList findUnAskedPermissions(ArrayList wanted) {
@@ -168,6 +219,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     @TargetApi(Build.VERSION_CODES.M)
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == 44){
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                getCurrentLocation();
+            }
+        }
+
+
         switch (requestCode) {
             case ALL_PERMISSIONS_RESULT:
                 for (Object perms : permissionsToRequest) {
@@ -217,6 +275,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             mGoogleApiClient.disconnect();
         }
     }
+
+
 }
 
 
